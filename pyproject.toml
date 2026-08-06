@@ -1,0 +1,26 @@
+[build-system]
+requires = ["uv_build>=0.8.15,<0.10.0"]
+build-backend = "uv_build"
+
+[project]
+name = "wyrd-cli"
+version = "0.1.0"
+description = "A local ticket management CLI for coding agents and humans"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+authors = [{ name = "Wyrd contributors" }]
+dependencies = [
+    "pydantic>=2.12,<3",
+    "pyyaml>=6.0,<7",
+    "rich>=14.0,<15",
+    "typer>=0.21,<1",
+]
+
+[dependency-groups]
+dev = ["pytest>=9.0,<10"]
+
+[tool.pytest.ini_options]
+addopts = "-ra"
+pythonpath = ["."]
+testpaths = ["tests"]
