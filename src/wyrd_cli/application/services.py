@@ -11,6 +11,8 @@ from wyrd_cli.application.clock import Clock, read_clock
 from wyrd_cli.application.dto import (
     UNSET,
     CreateResourceRequest,
+    DependencyRelationDTO,
+    DependencyViewDTO,
     DoctorProblemDTO,
     DoctorReportDTO,
     EditResourceRequest,
@@ -609,10 +611,72 @@ class WyrdApplication:
         self, identity: ResourceIdentity, *, lock_timeout: float = 10.0
     ) -> TicketDTO | TaskDTO:
         """Return a complete resource projection containing both dependency directions."""
+        return self.dependency_details(
+            identity, lock_timeout=lock_timeout
+        ).resource
+
+    def dependency_details(
+        self, identity: ResourceIdentity, *, lock_timeout: float = 10.0
+    ) -> DependencyViewDTO:
+        """Return relationship statuses and effectiveness from one read snapshot.
+
+        The nested ``resource`` is exactly the complete object returned by
+        ``list_dependencies`` and used by the JSON presentation contract.
+        """
         identity = _validate_resource_identity(identity)
-        if isinstance(identity, TaskIdentity):
-            return self.view_task(identity, lock_timeout=lock_timeout)
-        return self.view_ticket(identity, lock_timeout=lock_timeout)
+        timeout = _validate_timeout(lock_timeout)
+        with self._storage.read(timeout=timeout) as transaction:
+            snapshot = _load_snapshot(transaction)
+            if isinstance(identity, TaskIdentity):
+                task = _require_task(snapshot, identity)
+                resource = _task_dto(task, snapshot)
+                siblings = snapshot.tasks[task.ticket_id]
+                blocking_numbers = invert_edges(
+                    {item.number: item.blocked_by for item in siblings.values()}
+                ).get(task.number, ())
+                return DependencyViewDTO(
+                    resource=resource,
+                    blocked_by=tuple(
+                        DependencyRelationDTO(
+                            id=f"{task.ticket_id}.{number}",
+                            status=siblings[number].status,
+                            effective=f"{task.ticket_id}.{number}"
+                            in resource.active_blocked_by,
+                        )
+                        for number in task.blocked_by
+                    ),
+                    blocking=tuple(
+                        DependencyRelationDTO(
+                            id=f"{task.ticket_id}.{number}",
+                            status=siblings[number].status,
+                            effective=f"{task.ticket_id}.{number}"
+                            in resource.active_blocking,
+                        )
+                        for number in blocking_numbers
+                    ),
+                )
+
+            ticket = _require_ticket(snapshot, identity)
+            resource = _ticket_dto(ticket, snapshot)
+            return DependencyViewDTO(
+                resource=resource,
+                blocked_by=tuple(
+                    DependencyRelationDTO(
+                        id=blocker_id,
+                        status=snapshot.tickets[blocker_id].status,
+                        effective=blocker_id in resource.active_blocked_by,
+                    )
+                    for blocker_id in resource.blocked_by
+                ),
+                blocking=tuple(
+                    DependencyRelationDTO(
+                        id=dependent_id,
+                        status=snapshot.tickets[dependent_id].status,
+                        effective=dependent_id in resource.active_blocking,
+                    )
+                    for dependent_id in resource.blocking
+                ),
+            )
 
     def _change_dependency(
         self,

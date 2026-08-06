@@ -17,6 +17,9 @@ dependencies = [
     "typer>=0.21,<1",
 ]
 
+[project.scripts]
+wyrd = "wyrd_cli.main:main"
+
 [dependency-groups]
 dev = ["pytest>=9.0,<10"]
 

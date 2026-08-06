@@ -162,6 +162,22 @@ class DoctorReportDTO(OutputModel):
     problems: tuple[DoctorProblemDTO, ...]
 
 
+class DependencyRelationDTO(OutputModel):
+    """One direct relationship enriched inside the read snapshot."""
+
+    id: int | str
+    status: ResourceStatus
+    effective: bool
+
+
+class DependencyViewDTO(OutputModel):
+    """Human-facing dependency detail plus the normative complete resource."""
+
+    resource: TicketDTO | TaskDTO
+    blocked_by: tuple[DependencyRelationDTO, ...]
+    blocking: tuple[DependencyRelationDTO, ...]
+
+
 class TransitionPreflightDTO(OutputModel):
     id: int | str
     title: str
