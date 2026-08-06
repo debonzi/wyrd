@@ -38,12 +38,17 @@ class StructuralScan:
 
     Records that cannot be decoded safely are represented by problems rather
     than partial domain objects. Independent records should still be returned.
+    ``known_*`` identities come only from canonical path context and let the
+    domain doctor avoid misreporting a structurally malformed existing target
+    as absent; they carry no decoded lifecycle or dependency state.
     """
 
     project: Project | None
     tickets: tuple[LocatedTicket, ...] = ()
     tasks: tuple[LocatedTask, ...] = ()
     problems: tuple[DoctorProblemDTO, ...] = ()
+    known_ticket_ids: tuple[int, ...] = ()
+    known_task_identities: tuple[TaskIdentity, ...] = ()
 
 
 class ReadTransaction(Protocol):
@@ -87,8 +92,10 @@ class WriteTransaction(ReadTransaction, Protocol):
     this same transaction's lists. Creates must never overwrite an existing
     identity. Updates compare ``expected_revision`` with the currently stored
     resource and atomically replace exactly that canonical resource. A clean
-    context-manager exit commits; an exceptional exit publishes no staged
-    mutation.
+    context-manager exit commits; an exception raised before commit publishes
+    no staged mutation. A post-publication durability error may leave the new
+    complete resource visible; adapters must never expose partial content and
+    callers must revalidate rather than assume rollback.
     """
 
     def create_ticket(self, ticket: Ticket) -> None:
@@ -128,14 +135,30 @@ class StoragePort(Protocol):
         """Discover, validate, and bind the unique project associated with ``start``."""
         ...
 
+    def discover_for_diagnostics(self, start: str) -> None:
+        """Bind the unique project for tolerant doctor scanning.
+
+        This validates discovery, nesting, the managed root, and the persistent
+        lock, but deliberately does not decode canonical project/resources;
+        those are reported by ``structural_scan`` under the shared lock.
+        """
+        ...
+
     def initialize(
-        self, *, root: str, name: str, created_at: datetime
+        self,
+        *,
+        root: str,
+        name: str,
+        created_at: datetime,
+        name_was_explicit: bool = True,
     ) -> Project:
         """Atomically create or idempotently return and bind a project.
 
         Concurrent publication, ancestor/nested checks, staging, and
-        same-name idempotency belong to the adapter. A different existing name
-        raises ``ConflictError`` and invalid/partial state is never replaced.
+        idempotency belong to the adapter. ``name`` is always the validated
+        creation name; ``name_was_explicit`` distinguishes an omitted caller
+        name, which accepts any existing immutable name, from a requested name
+        that must match. Invalid/partial state is never replaced.
         """
         ...
 

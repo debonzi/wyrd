@@ -107,13 +107,20 @@ class WyrdApplication:
         selected_name = self._storage.suggested_project_name(root) if name is None else name
         selected_name = validate_project_name(selected_name)
         project = self._storage.initialize(
-            root=root, name=selected_name, created_at=read_clock(self._clock)
+            root=root,
+            name=selected_name,
+            created_at=read_clock(self._clock),
+            name_was_explicit=name is not None,
         )
         return _project_dto(project)
 
     def discover_project(self, start: str) -> ProjectDTO:
         """Discover and bind the unique project associated with an opaque start value."""
         return _project_dto(self._storage.discover(start))
+
+    def bind_doctor_project(self, start: str) -> None:
+        """Bind discovery without strict decoding so doctor can report malformed data."""
+        self._storage.discover_for_diagnostics(start)
 
     def project_status(self, *, lock_timeout: float = 10.0) -> ProjectStatusDTO:
         """Return consistent project-wide counts from one read snapshot."""
@@ -997,6 +1004,11 @@ def _domain_doctor_problems(scan: StructuralScan) -> tuple[DoctorProblemDTO, ...
     problems: list[DoctorProblemDTO] = []
     ticket_records: dict[int, tuple[Ticket, str]] = {}
     task_records: dict[tuple[int, int], tuple[Task, str]] = {}
+    known_ticket_ids = set(scan.known_ticket_ids)
+    known_task_identities = {
+        (identity.ticket_id, identity.number)
+        for identity in scan.known_task_identities
+    }
 
     for record in scan.tickets:
         if record.ticket.id in ticket_records:
@@ -1010,6 +1022,7 @@ def _domain_doctor_problems(scan: StructuralScan) -> tuple[DoctorProblemDTO, ...
             )
         else:
             ticket_records[record.ticket.id] = (record.ticket, record.path)
+        known_ticket_ids.add(record.ticket.id)
     for record in scan.tasks:
         key = (record.task.ticket_id, record.task.number)
         if key in task_records:
@@ -1023,6 +1036,7 @@ def _domain_doctor_problems(scan: StructuralScan) -> tuple[DoctorProblemDTO, ...
             )
         else:
             task_records[key] = (record.task, record.path)
+        known_task_identities.add(key)
 
     ticket_edges: dict[int, tuple[int, ...]] = {}
     for ticket_id, (ticket, path) in ticket_records.items():
@@ -1037,7 +1051,7 @@ def _domain_doctor_problems(scan: StructuralScan) -> tuple[DoctorProblemDTO, ...
                         details={"ticket_id": ticket_id},
                     )
                 )
-            elif blocker_id not in ticket_records:
+            elif blocker_id not in known_ticket_ids:
                 problems.append(
                     DoctorProblemDTO(
                         path=path,
@@ -1062,7 +1076,7 @@ def _domain_doctor_problems(scan: StructuralScan) -> tuple[DoctorProblemDTO, ...
         task, path = record
         tasks_by_ticket[ticket_id][number] = record
         parent_record = ticket_records.get(ticket_id)
-        if parent_record is None:
+        if parent_record is None and ticket_id not in known_ticket_ids:
             problems.append(
                 DoctorProblemDTO(
                     path=path,
@@ -1097,7 +1111,7 @@ def _domain_doctor_problems(scan: StructuralScan) -> tuple[DoctorProblemDTO, ...
                             details={"task_id": task.public_id},
                         )
                     )
-                elif blocker_number not in records:
+                elif (ticket_id, blocker_number) not in known_task_identities:
                     problems.append(
                         DoctorProblemDTO(
                             path=path,

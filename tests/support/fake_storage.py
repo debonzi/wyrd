@@ -68,13 +68,22 @@ class FakeStorage:
         self._raise_if_injected("discover")
         return self.project
 
+    def discover_for_diagnostics(self, start: str) -> None:
+        self.calls.append("discover_for_diagnostics")
+        self._raise_if_injected("discover_for_diagnostics")
+
     def initialize(
-        self, *, root: str, name: str, created_at: datetime
+        self,
+        *,
+        root: str,
+        name: str,
+        created_at: datetime,
+        name_was_explicit: bool = True,
     ) -> Project:
         self.calls.append("initialize")
         self._raise_if_injected("initialize")
         if self.project.root == root:
-            if self.project.name != name:
+            if name_was_explicit and self.project.name != name:
                 raise ConflictError(
                     "A project with a different name already exists.",
                     {"existing_name": self.project.name, "requested_name": name},
@@ -179,6 +188,12 @@ class _FakeTransaction:
                     path=f"tickets/{task.ticket_id}/tasks/{task.number}.md",
                     task=task,
                 )
+                for siblings in self.tasks.values()
+                for task in siblings.values()
+            ),
+            known_ticket_ids=tuple(self.tickets),
+            known_task_identities=tuple(
+                task.identity
                 for siblings in self.tasks.values()
                 for task in siblings.values()
             ),
