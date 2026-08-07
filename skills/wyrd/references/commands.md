@@ -57,12 +57,16 @@ Creates an open ticket.
 
 ```text
 wyrd ticket list [--status STATUS] [--label LABEL]... [--text TEXT]
-  [common options]
+  [--summary] [common options]
 ```
 
 Defaults to `--status open`. Repeated labels use AND semantics. Text searches the
-title and body after Unicode normalization and case folding. JSON entries are complete
-ticket objects, including bodies; use the compact helper for bounded triage.
+title and body after Unicode normalization and case folding. The optional `--summary`
+flag makes each JSON entry a compact projection with `type`, `id`, `revision`,
+`title`, `status`, `labels`, `is_blocked`, `active_blocked_by`, `active_blocking`, and
+`tasks_summary`. It omits the body, timestamps, historical dependency directions,
+activity flag, and complete task IDs. Without `--summary`, JSON entries remain complete
+ticket objects.
 
 ### `wyrd ticket view`
 
@@ -134,12 +138,16 @@ Creates an open task under an active ticket.
 ### `wyrd task list`
 
 ```text
-wyrd task list --ticket TICKET_ID [--status STATUS] [common options]
+wyrd task list --ticket TICKET_ID [--status STATUS] [--summary]
+  [common options]
 ```
 
 Defaults to `--status all`. The result can include open but inactive tasks whose parent
-ticket is terminal. JSON entries are complete task objects, including bodies; use the
-compact helper for bounded triage.
+ticket is terminal. The optional `--summary` flag makes each JSON entry a compact
+projection with `type`, `id`, `ticket_id`, `number`, `revision`, `title`, `status`,
+`labels`, `active`, `is_blocked`, `active_blocked_by`, and `active_blocking`. It omits
+the body, timestamps, and historical dependency directions. Without `--summary`, JSON
+entries remain complete task objects.
 
 ### `wyrd task view`
 

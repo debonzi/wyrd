@@ -2,7 +2,7 @@
 name: wyrd
 description: Manage local Wyrd tickets, tasks, labels, lifecycle transitions, and dependencies efficiently. Use when selecting, inspecting, creating, editing, organizing, or completing work tracked by the wyrd CLI, or when diagnosing a Wyrd project.
 license: MIT
-compatibility: Requires the wyrd executable from wyrd-cli 0.1.x on PATH. The optional compact context helper requires Python 3.12 or newer.
+compatibility: Requires the wyrd executable from wyrd-cli 0.1.x with native --summary support on PATH.
 metadata:
   version: "0.1.0"
 ---
@@ -34,20 +34,17 @@ the project root.
 
    If no project is found, locate the intended project or ask before initializing one.
 
-2. Triage with compact context instead of loading complete bodies. Resolve
-   [scripts/context.py](scripts/context.py) relative to this `SKILL.md`, but keep the
-   process working directory inside the target project:
+2. Triage with native summary projections instead of loading complete bodies:
 
    ```bash
-   python3 <skill-root>/scripts/context.py tickets
-   python3 <skill-root>/scripts/context.py tickets --label bug --text startup
-   python3 <skill-root>/scripts/context.py tasks --ticket 3
+   wyrd ticket list --status open --summary --json
+   wyrd ticket list --status open --label bug --text startup --summary --json
+   wyrd task list --ticket 3 --status open --summary --json
    ```
 
-   The helper is read-only, invokes the installed `wyrd` executable, and removes bodies
-   and timestamps. If it is unavailable, use `wyrd ticket list --no-color` or
-   `wyrd task list --ticket ID --no-color` for bounded triage. Direct JSON lists contain
-   complete objects and can be large.
+   Summaries are read-only discovery views. They retain identity, revision, status,
+   labels, and active blocking information while omitting bodies, timestamps, and
+   historical dependency fields.
 
 3. Load a complete object only after selecting it:
 
@@ -63,9 +60,11 @@ the project root.
    wyrd task dependency list 3.2 --json
    ```
 
-Use list filters early. The compact helper defaults both lists to open resources.
-Direct ticket lists default to open and support repeated `--label` filters plus
-`--text`; direct task lists require `--ticket` and default to all statuses.
+Use list filters early. Ticket lists default to open and support repeated `--label`
+filters plus `--text`; the examples keep `--status open` explicit. Task lists require
+`--ticket` and default to all statuses, so always pass `--status open` during triage to
+exclude terminal history. Use `view --json` only after selecting a resource and needing
+its body or complete metadata.
 
 ## Mutation workflow
 

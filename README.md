@@ -80,7 +80,7 @@ context, use deterministic JSON, preserve revision safety, and follow Wyrd lifec
 and dependency rules.
 
 The skill requires a compatible `wyrd` executable on `PATH`; installing the skill does
-not install the Python CLI. From a checkout, try it in Pi with:
+not install the Wyrd CLI. From a checkout, try it in Pi with:
 
 ```console
 pi --skill ./skills/wyrd
@@ -96,12 +96,11 @@ Pi discovers the top-level `skills/` directory automatically. Other Agent
 Skills-compatible harnesses can install or copy `skills/wyrd` into their user- or
 project-level skills directory.
 
-The optional read-only helper returns compact ticket or task context without bodies or
-timestamps:
+The skill uses the CLI's native read-only summary projections for bounded triage:
 
 ```console
-python3 /path/to/skills/wyrd/scripts/context.py tickets --label performance
-python3 /path/to/skills/wyrd/scripts/context.py tasks --ticket 1
+wyrd ticket list --status open --label performance --summary --json
+wyrd task list --ticket 1 --status open --summary --json
 ```
 
 See [`skills/wyrd/SKILL.md`](skills/wyrd/SKILL.md) for the complete workflow.
@@ -117,4 +116,4 @@ uv run pytest
 
 The GitHub Actions workflow runs the same suite on Python 3.12 and 3.14. Skill tests
 validate its metadata, documented command inventory and options, compatibility version,
-and compact helper behavior against the installed CLI.
+and native summary workflow against the installed CLI.
