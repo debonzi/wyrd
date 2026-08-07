@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 from collections import Counter, defaultdict
 from dataclasses import dataclass
-from typing import cast
+from typing import Literal, cast
 
 from wyrd_cli.application.clock import Clock, read_clock
 from wyrd_cli.application.dto import (
@@ -24,10 +24,12 @@ from wyrd_cli.application.dto import (
     TaskDTO,
     TaskListFilter,
     TaskStatusCountsDTO,
+    TaskSummaryDTO,
     TasksSummaryDTO,
     TicketDTO,
     TicketListFilter,
     TicketStatusCountsDTO,
+    TicketSummaryDTO,
     TransitionPreflightDTO,
 )
 from wyrd_cli.application.storage import ReadTransaction, StoragePort, StructuralScan
@@ -88,6 +90,33 @@ class _Snapshot:
             for ticket_id in sorted(self.tasks)
             for task in self.tasks[ticket_id].values()
         )
+
+
+@dataclass(frozen=True)
+class _TicketDerivedFields:
+    blocking: tuple[int, ...]
+    active_blocked_by: tuple[int, ...]
+    active_blocking: tuple[int, ...]
+    active: bool
+    is_blocked: bool
+    tasks: tuple[str, ...]
+    tasks_summary: TasksSummaryDTO
+
+
+@dataclass(frozen=True)
+class _TaskDerivedFields:
+    blocking: tuple[str, ...]
+    active_blocked_by: tuple[str, ...]
+    active_blocking: tuple[str, ...]
+    active: bool
+    is_blocked: bool
+
+
+@dataclass(frozen=True)
+class _TicketListCriteria:
+    status: ResourceStatus | Literal["all"]
+    labels: tuple[str, ...]
+    query: str | None
 
 
 class WyrdApplication:
@@ -222,24 +251,30 @@ class WyrdApplication:
         lock_timeout: float = 10.0,
     ) -> tuple[TicketDTO, ...]:
         """List complete ticket projections in ascending identity order."""
-        status = _normalize_status_filter(filters.status)
-        labels = normalize_labels(filters.labels)
-        query = normalize_search_text(filters.text) if filters.text is not None else None
+        criteria = _normalize_ticket_list_filter(filters)
         timeout = _validate_timeout(lock_timeout)
         with self._storage.read(timeout=timeout) as transaction:
             snapshot = _load_snapshot(transaction)
-            result: list[TicketDTO] = []
-            for ticket in snapshot.tickets.values():
-                if status != "all" and ticket.status is not status:
-                    continue
-                if not set(labels).issubset(ticket.labels):
-                    continue
-                if query is not None and query not in searchable_text(
-                    f"{ticket.title}\n{ticket.body}"
-                ):
-                    continue
-                result.append(_ticket_dto(ticket, snapshot))
-            return tuple(result)
+            return tuple(
+                _ticket_dto(ticket, snapshot)
+                for ticket in _matching_tickets(snapshot, criteria)
+            )
+
+    def list_ticket_summaries(
+        self,
+        filters: TicketListFilter = TicketListFilter(),
+        *,
+        lock_timeout: float = 10.0,
+    ) -> tuple[TicketSummaryDTO, ...]:
+        """List stable, compact ticket projections in ascending identity order."""
+        criteria = _normalize_ticket_list_filter(filters)
+        timeout = _validate_timeout(lock_timeout)
+        with self._storage.read(timeout=timeout) as transaction:
+            snapshot = _load_snapshot(transaction)
+            return tuple(
+                _ticket_summary_dto(ticket, snapshot)
+                for ticket in _matching_tickets(snapshot, criteria)
+            )
 
     def edit_ticket(
         self,
@@ -439,11 +474,27 @@ class WyrdApplication:
         timeout = _validate_timeout(lock_timeout)
         with self._storage.read(timeout=timeout) as transaction:
             snapshot = _load_snapshot(transaction)
-            _require_ticket(snapshot, ticket_id)
             return tuple(
                 _task_dto(task, snapshot)
-                for task in snapshot.tasks[ticket_id].values()
-                if status == "all" or task.status is status
+                for task in _matching_tasks(snapshot, ticket_id, status)
+            )
+
+    def list_task_summaries(
+        self,
+        ticket_id: int,
+        filters: TaskListFilter = TaskListFilter(),
+        *,
+        lock_timeout: float = 10.0,
+    ) -> tuple[TaskSummaryDTO, ...]:
+        """List stable, compact task projections in task-number order."""
+        ticket_id = validate_positive_int(ticket_id, "ticket_id")
+        status = _normalize_status_filter(filters.status)
+        timeout = _validate_timeout(lock_timeout)
+        with self._storage.read(timeout=timeout) as transaction:
+            snapshot = _load_snapshot(transaction)
+            return tuple(
+                _task_summary_dto(task, snapshot)
+                for task in _matching_tasks(snapshot, ticket_id, status)
             )
 
     def edit_task(
@@ -853,17 +904,7 @@ def _project_dto(project: Project) -> ProjectDTO:
 
 
 def _ticket_dto(ticket: Ticket, snapshot: _Snapshot) -> TicketDTO:
-    edges = {item.id: item.blocked_by for item in snapshot.tickets.values()}
-    blocking = invert_edges(edges).get(ticket.id, ())
-    active_blocked_by = ticket_effective_blockers(ticket, snapshot.tickets)
-    active_blocking = tuple(
-        dependent_id
-        for dependent_id in blocking
-        if ticket_is_active(ticket)
-        and ticket_is_active(snapshot.tickets[dependent_id])
-    )
-    tasks = snapshot.tasks.get(ticket.id, {})
-    counts = summarize_tasks(tasks.values(), ticket)
+    derived = _ticket_derived_fields(ticket, snapshot)
     return TicketDTO(
         id=ticket.id,
         revision=ticket.revision,
@@ -872,30 +913,61 @@ def _ticket_dto(ticket: Ticket, snapshot: _Snapshot) -> TicketDTO:
         status=ticket.status,
         labels=ticket.labels,
         blocked_by=ticket.blocked_by,
-        blocking=blocking,
-        active_blocked_by=active_blocked_by,
-        active_blocking=active_blocking,
-        active=ticket_is_active(ticket),
-        is_blocked=bool(active_blocked_by),
-        tasks=tuple(task.public_id for task in tasks.values()),
-        tasks_summary=TasksSummaryDTO(**counts.__dict__),
+        blocking=derived.blocking,
+        active_blocked_by=derived.active_blocked_by,
+        active_blocking=derived.active_blocking,
+        active=derived.active,
+        is_blocked=derived.is_blocked,
+        tasks=derived.tasks,
+        tasks_summary=derived.tasks_summary,
         created_at=ticket.created_at,
         updated_at=ticket.updated_at,
         closed_at=ticket.closed_at,
     )
 
 
-def _task_dto(task: Task, snapshot: _Snapshot) -> TaskDTO:
-    parent = snapshot.tickets[task.ticket_id]
-    siblings = snapshot.tasks[task.ticket_id]
-    edges = {item.number: item.blocked_by for item in siblings.values()}
-    blocking_numbers = invert_edges(edges).get(task.number, ())
-    active_blocker_numbers = task_effective_blockers(task, parent, siblings)
-    active_blocking_numbers = tuple(
-        number
-        for number in blocking_numbers
-        if task_is_active(task, parent) and task_is_active(siblings[number], parent)
+def _ticket_summary_dto(ticket: Ticket, snapshot: _Snapshot) -> TicketSummaryDTO:
+    derived = _ticket_derived_fields(ticket, snapshot)
+    return TicketSummaryDTO(
+        id=ticket.id,
+        revision=ticket.revision,
+        title=ticket.title,
+        status=ticket.status,
+        labels=ticket.labels,
+        is_blocked=derived.is_blocked,
+        active_blocked_by=derived.active_blocked_by,
+        active_blocking=derived.active_blocking,
+        tasks_summary=derived.tasks_summary,
     )
+
+
+def _ticket_derived_fields(
+    ticket: Ticket, snapshot: _Snapshot
+) -> _TicketDerivedFields:
+    edges = {item.id: item.blocked_by for item in snapshot.tickets.values()}
+    blocking = invert_edges(edges).get(ticket.id, ())
+    active = ticket_is_active(ticket)
+    active_blocked_by = ticket_effective_blockers(ticket, snapshot.tickets)
+    active_blocking = tuple(
+        dependent_id
+        for dependent_id in blocking
+        if active and ticket_is_active(snapshot.tickets[dependent_id])
+    )
+    tasks = snapshot.tasks.get(ticket.id, {})
+    counts = summarize_tasks(tasks.values(), ticket)
+    return _TicketDerivedFields(
+        blocking=blocking,
+        active_blocked_by=active_blocked_by,
+        active_blocking=active_blocking,
+        active=active,
+        is_blocked=bool(active_blocked_by),
+        tasks=tuple(task.public_id for task in tasks.values()),
+        tasks_summary=TasksSummaryDTO(**counts.__dict__),
+    )
+
+
+def _task_dto(task: Task, snapshot: _Snapshot) -> TaskDTO:
+    derived = _task_derived_fields(task, snapshot)
     prefix = f"{task.ticket_id}."
     return TaskDTO(
         id=task.public_id,
@@ -907,14 +979,97 @@ def _task_dto(task: Task, snapshot: _Snapshot) -> TaskDTO:
         status=task.status,
         labels=task.labels,
         blocked_by=tuple(prefix + str(number) for number in task.blocked_by),
-        blocking=tuple(prefix + str(number) for number in blocking_numbers),
-        active_blocked_by=tuple(prefix + str(number) for number in active_blocker_numbers),
-        active_blocking=tuple(prefix + str(number) for number in active_blocking_numbers),
-        active=task_is_active(task, parent),
-        is_blocked=bool(active_blocker_numbers),
+        blocking=derived.blocking,
+        active_blocked_by=derived.active_blocked_by,
+        active_blocking=derived.active_blocking,
+        active=derived.active,
+        is_blocked=derived.is_blocked,
         created_at=task.created_at,
         updated_at=task.updated_at,
         closed_at=task.closed_at,
+    )
+
+
+def _task_summary_dto(task: Task, snapshot: _Snapshot) -> TaskSummaryDTO:
+    derived = _task_derived_fields(task, snapshot)
+    return TaskSummaryDTO(
+        id=task.public_id,
+        ticket_id=task.ticket_id,
+        number=task.number,
+        revision=task.revision,
+        title=task.title,
+        status=task.status,
+        labels=task.labels,
+        active=derived.active,
+        is_blocked=derived.is_blocked,
+        active_blocked_by=derived.active_blocked_by,
+        active_blocking=derived.active_blocking,
+    )
+
+
+def _task_derived_fields(task: Task, snapshot: _Snapshot) -> _TaskDerivedFields:
+    parent = snapshot.tickets[task.ticket_id]
+    siblings = snapshot.tasks[task.ticket_id]
+    edges = {item.number: item.blocked_by for item in siblings.values()}
+    blocking_numbers = invert_edges(edges).get(task.number, ())
+    active = task_is_active(task, parent)
+    active_blocker_numbers = task_effective_blockers(task, parent, siblings)
+    active_blocking_numbers = tuple(
+        number
+        for number in blocking_numbers
+        if active and task_is_active(siblings[number], parent)
+    )
+    prefix = f"{task.ticket_id}."
+    return _TaskDerivedFields(
+        blocking=tuple(prefix + str(number) for number in blocking_numbers),
+        active_blocked_by=tuple(
+            prefix + str(number) for number in active_blocker_numbers
+        ),
+        active_blocking=tuple(
+            prefix + str(number) for number in active_blocking_numbers
+        ),
+        active=active,
+        is_blocked=bool(active_blocker_numbers),
+    )
+
+
+def _normalize_ticket_list_filter(filters: TicketListFilter) -> _TicketListCriteria:
+    return _TicketListCriteria(
+        status=_normalize_status_filter(filters.status),
+        labels=normalize_labels(filters.labels),
+        query=(
+            normalize_search_text(filters.text)
+            if filters.text is not None
+            else None
+        ),
+    )
+
+
+def _matching_tickets(
+    snapshot: _Snapshot, criteria: _TicketListCriteria
+) -> tuple[Ticket, ...]:
+    return tuple(
+        ticket
+        for ticket in snapshot.tickets.values()
+        if (criteria.status == "all" or ticket.status is criteria.status)
+        and set(criteria.labels).issubset(ticket.labels)
+        and (
+            criteria.query is None
+            or criteria.query in searchable_text(f"{ticket.title}\n{ticket.body}")
+        )
+    )
+
+
+def _matching_tasks(
+    snapshot: _Snapshot,
+    ticket_id: int,
+    status: ResourceStatus | Literal["all"],
+) -> tuple[Task, ...]:
+    _require_ticket(snapshot, ticket_id)
+    return tuple(
+        task
+        for task in snapshot.tasks[ticket_id].values()
+        if status == "all" or task.status is status
     )
 
 
@@ -958,7 +1113,9 @@ def _normalize_edit(request: EditResourceRequest) -> EditResourceRequest:
     )
 
 
-def _normalize_status_filter(value: object) -> ResourceStatus | str:
+def _normalize_status_filter(
+    value: object,
+) -> ResourceStatus | Literal["all"]:
     if value == "all":
         return "all"
     try:

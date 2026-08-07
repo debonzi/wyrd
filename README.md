@@ -57,6 +57,19 @@ Use `--json` with project commands when integrating Wyrd with an agent or script
 wyrd ticket list --json
 ```
 
+For lower-token triage, add `--summary` to ticket and task list commands:
+
+```console
+wyrd ticket list --status open --summary --json
+wyrd task list --ticket 3 --status open --summary --json
+```
+
+`--summary` changes the JSON projection, not merely its whitespace: it omits bodies,
+timestamps, historical dependency fields, and complete ticket task IDs while retaining
+stable identity, status, labels, active dependencies, blocking state, and task counts.
+Without the flag, list JSON remains the complete, compatible resource projection.
+Human list output is already concise and stays unchanged when `--summary` is present.
+
 Run `wyrd --help` to explore all available commands.
 
 ## Agent skill
