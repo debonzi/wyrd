@@ -235,6 +235,11 @@ def create_app(dependencies: PresentationDependencies) -> typer.Typer:
         labels: list[str] = typer.Option([], "--label"),
         text: str | None = typer.Option(None, "--text"),
         json_output: bool = typer.Option(False, "--json"),
+        summary: bool = typer.Option(
+            False,
+            "--summary",
+            help="Use the compact ticket projection for JSON output.",
+        ),
         no_color: bool = typer.Option(False, "--no-color"),
         lock_timeout: float = typer.Option(
             10.0, "--lock-timeout", callback=validate_lock_timeout
@@ -243,22 +248,24 @@ def create_app(dependencies: PresentationDependencies) -> typer.Typer:
         """List tickets in ascending ID order."""
 
         settings = InvocationSettings(json_output, no_color, lock_timeout)
-        _run(
-            dependencies,
-            settings,
-            lambda: _with_project(
-                dependencies,
-                lambda application: application.list_tickets(
-                    TicketListFilter(
-                        status=status_value,
-                        labels=tuple(labels),
-                        text=text,
-                    ),
-                    lock_timeout=lock_timeout,
-                ),
-            ),
-            render_ticket_list,
+        filters = TicketListFilter(
+            status=status_value,
+            labels=tuple(labels),
+            text=text,
         )
+
+        def action():
+            def operation(application: WyrdApplication):
+                method = (
+                    application.list_ticket_summaries
+                    if summary and json_output
+                    else application.list_tickets
+                )
+                return method(filters, lock_timeout=lock_timeout)
+
+            return _with_project(dependencies, operation)
+
+        _run(dependencies, settings, action, render_ticket_list)
 
     @ticket_app.command("view")
     def ticket_view(
@@ -369,6 +376,11 @@ def create_app(dependencies: PresentationDependencies) -> typer.Typer:
             "all", "--status", callback=validate_status
         ),
         json_output: bool = typer.Option(False, "--json"),
+        summary: bool = typer.Option(
+            False,
+            "--summary",
+            help="Use the compact task projection for JSON output.",
+        ),
         no_color: bool = typer.Option(False, "--no-color"),
         lock_timeout: float = typer.Option(
             10.0, "--lock-timeout", callback=validate_lock_timeout
@@ -377,16 +389,24 @@ def create_app(dependencies: PresentationDependencies) -> typer.Typer:
         """List tasks belonging to one ticket."""
 
         settings = InvocationSettings(json_output, no_color, lock_timeout)
+
         def action():
             parsed_ticket_id = parse_ticket_id(ticket_id)
-            return _with_project(
-                dependencies,
-                lambda application: application.list_tasks(
+            filters = TaskListFilter(status=status_value)
+
+            def operation(application: WyrdApplication):
+                method = (
+                    application.list_task_summaries
+                    if summary and json_output
+                    else application.list_tasks
+                )
+                return method(
                     parsed_ticket_id,
-                    TaskListFilter(status=status_value),
+                    filters,
                     lock_timeout=lock_timeout,
-                ),
-            )
+                )
+
+            return _with_project(dependencies, operation)
 
         _run(dependencies, settings, action, render_task_list)
 

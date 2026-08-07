@@ -72,6 +72,34 @@ class TasksSummaryDTO(OutputModel):
     inactive_open: int
 
 
+class TicketSummaryDTO(OutputModel):
+    type: Literal["ticket"] = "ticket"
+    id: int
+    revision: int
+    title: str
+    status: ResourceStatus
+    labels: tuple[str, ...]
+    is_blocked: bool
+    active_blocked_by: tuple[int, ...]
+    active_blocking: tuple[int, ...]
+    tasks_summary: TasksSummaryDTO
+
+
+class TaskSummaryDTO(OutputModel):
+    type: Literal["task"] = "task"
+    id: str
+    ticket_id: int
+    number: int
+    revision: int
+    title: str
+    status: ResourceStatus
+    labels: tuple[str, ...]
+    active: bool
+    is_blocked: bool
+    active_blocked_by: tuple[str, ...]
+    active_blocking: tuple[str, ...]
+
+
 class TicketDTO(OutputModel):
     type: Literal["ticket"] = "ticket"
     id: int
