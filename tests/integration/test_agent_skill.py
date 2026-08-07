@@ -15,6 +15,8 @@ SKILL = ROOT / "skills" / "wyrd"
 SKILL_FILE = SKILL / "SKILL.md"
 README_FILE = ROOT / "README.md"
 
+ANSI = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
+
 EXPECTED_COMMANDS = {
     "wyrd doctor",
     "wyrd init",
@@ -173,7 +175,8 @@ def test_skill_command_reference_covers_cli_leaf_commands_and_options() -> None:
         expected_options = set(re.findall(r"--[a-z][a-z-]*", syntax.group(1)))
         if "[common options]" in syntax.group(1):
             expected_options |= common_options
-        actual_options = set(re.findall(r"--[a-z][a-z-]*", result.stdout)) - {
+        plain_help = ANSI.sub("", result.stdout)
+        actual_options = set(re.findall(r"--[a-z][a-z-]*", plain_help)) - {
             "--help"
         }
         assert actual_options == expected_options, command

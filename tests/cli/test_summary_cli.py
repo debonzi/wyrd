@@ -251,7 +251,8 @@ def test_help_exposes_summary_only_on_ticket_and_task_list(runner, cli_factory) 
     for command in leaf_commands:
         result = runner.invoke(app, [*command, "--help"])
         assert result.exit_code == 0, command
-        assert ("--summary" in result.stdout) is (command in summary_commands)
+        plain_help = ANSI.sub("", result.stdout)
+        assert ("--summary" in plain_help) is (command in summary_commands)
 
     rejected = runner.invoke(
         app, ["ticket", "view", "1", "--summary", "--json"]
