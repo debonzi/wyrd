@@ -1,0 +1,237 @@
+name: Publish wyrd-cli to TestPyPI
+
+"on":
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-testpypi-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Verify Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13", "3.14"]
+
+    steps:
+      - name: Check out the selected commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Require the selected commit to be on main
+        shell: bash
+        run: |
+          set -euo pipefail
+          selected_sha="$(git rev-parse HEAD)"
+          test "$selected_sha" = "$GITHUB_SHA"
+          git fetch --no-tags origin "+refs/heads/main:refs/remotes/origin/main"
+          if ! git merge-base --is-ancestor "$selected_sha" refs/remotes/origin/main; then
+            echo "TestPyPI candidates must already be contained in main." >&2
+            exit 1
+          fi
+          printf 'Selected ref: %s\nSelected commit: %s\n' "$GITHUB_REF" "$selected_sha"
+
+      - name: Install repository-pinned uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.12.3"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install Python ${{ matrix.python-version }}
+        env:
+          PYTHON_VERSION: ${{ matrix.python-version }}
+        run: uv python install "$PYTHON_VERSION"
+
+      - name: Verify release identity without requiring a tag
+        env:
+          PYTHON_VERSION: ${{ matrix.python-version }}
+        run: |
+          uv run --locked --python "$PYTHON_VERSION" python - <<'PY'
+          from scripts.release import validate_repository
+
+          identity = validate_repository()
+          print(f"Verified {identity.name} {identity.version} without a production tag")
+          PY
+
+      - name: Run the complete test suite
+        env:
+          PYTHON_VERSION: ${{ matrix.python-version }}
+        run: uv run --locked --python "$PYTHON_VERSION" pytest
+
+  build:
+    name: Build and inspect TestPyPI release candidate
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      artifact-digest: ${{ steps.handoff.outputs.artifact-digest }}
+      artifact-id: ${{ steps.handoff.outputs.artifact-id }}
+      artifact-name: ${{ steps.details.outputs.artifact-name }}
+      checksum-filename: ${{ steps.details.outputs.checksum-filename }}
+      sdist-filename: ${{ steps.details.outputs.sdist-filename }}
+      version: ${{ steps.preflight.outputs.version }}
+      wheel-filename: ${{ steps.details.outputs.wheel-filename }}
+
+    steps:
+      - name: Check out the verified commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Confirm the checked-out commit
+        run: test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+
+      - name: Install repository-pinned uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: "0.12.3"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install smoke-test Python
+        run: uv python install "3.14"
+
+      - name: Run canonical release preflight
+        id: preflight
+        env:
+          UV_PYTHON: "3.14"
+        run: >-
+          uv run --locked --group release python scripts/release.py
+          --artifact-dir dist/release --clear
+
+      - name: Stage the exact preflight outputs
+        id: details
+        env:
+          CHECKSUM_MANIFEST: ${{ steps.preflight.outputs.checksum_manifest }}
+          SDIST: ${{ steps.preflight.outputs.sdist }}
+          VERSION: ${{ steps.preflight.outputs.version }}
+          WHEEL: ${{ steps.preflight.outputs.wheel }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf dist/handoff
+          mkdir -p dist/handoff/packages
+          install -m 0644 -- "$WHEEL" dist/handoff/packages/
+          install -m 0644 -- "$SDIST" dist/handoff/packages/
+          install -m 0644 -- "$CHECKSUM_MANIFEST" dist/handoff/release.sha256
+
+          test "$(find dist/handoff -type f | wc -l)" -eq 3
+          test "$(find dist/handoff/packages -maxdepth 1 -type f -name '*.whl' | wc -l)" -eq 1
+          test "$(find dist/handoff/packages -maxdepth 1 -type f -name '*.tar.gz' | wc -l)" -eq 1
+          test "$(wc -l < dist/handoff/release.sha256)" -eq 2
+          (cd dist/handoff/packages && sha256sum --check ../release.sha256)
+
+          artifact_name="wyrd-cli-testpypi-${VERSION}-${GITHUB_SHA}"
+          printf 'artifact-name=%s\n' "$artifact_name" >> "$GITHUB_OUTPUT"
+          printf 'checksum-filename=release.sha256\n' >> "$GITHUB_OUTPUT"
+          printf 'sdist-filename=%s\n' "$(basename -- "$SDIST")" >> "$GITHUB_OUTPUT"
+          printf 'wheel-filename=%s\n' "$(basename -- "$WHEEL")" >> "$GITHUB_OUTPUT"
+
+      - name: Upload the validated release candidate
+        id: handoff
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ steps.details.outputs.artifact-name }}
+          path: dist/handoff/
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+          overwrite: false
+          include-hidden-files: false
+
+      - name: Summarize the TestPyPI candidate
+        env:
+          ARTIFACT_DIGEST: ${{ steps.handoff.outputs.artifact-digest }}
+          ARTIFACT_NAME: ${{ steps.details.outputs.artifact-name }}
+          SDIST_FILENAME: ${{ steps.details.outputs.sdist-filename }}
+          VERSION: ${{ steps.preflight.outputs.version }}
+          WHEEL_FILENAME: ${{ steps.details.outputs.wheel-filename }}
+        shell: bash
+        run: |
+          {
+            echo "## TestPyPI release candidate"
+            printf -- '- Selected ref: `%s`\n' "$GITHUB_REF"
+            printf -- '- Commit: `%s`\n' "$GITHUB_SHA"
+            printf -- '- Version: `%s`\n' "$VERSION"
+            printf -- '- Wheel: `%s`\n' "$WHEEL_FILENAME"
+            printf -- '- Source distribution: `%s`\n' "$SDIST_FILENAME"
+            printf -- '- Actions artifact: `%s`\n' "$ARTIFACT_NAME"
+            printf -- '- Actions artifact SHA-256: `%s`\n' "$ARTIFACT_DIGEST"
+            echo "### Package SHA-256 digests"
+            while read -r digest filename; do
+              printf -- '- `%s  %s`\n' "$digest" "$filename"
+            done < dist/handoff/release.sha256
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+
+  publish:
+    name: Publish the exact candidate to TestPyPI
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/project/wyrd-cli/
+    permissions:
+      id-token: write
+
+    steps:
+      - name: Download the validated release candidate
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          artifact-ids: ${{ needs.build.outputs.artifact-id }}
+          path: release/
+
+      - name: Verify the downloaded handoff
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(find release -type f | wc -l)" -eq 3
+          test "$(find release/packages -maxdepth 1 -type f -name '*.whl' | wc -l)" -eq 1
+          test "$(find release/packages -maxdepth 1 -type f -name '*.tar.gz' | wc -l)" -eq 1
+          test "$(wc -l < release/release.sha256)" -eq 2
+          (cd release/packages && sha256sum --check ../release.sha256)
+
+      - name: Publish package distributions to TestPyPI
+        id: publish
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
+        with:
+          packages-dir: release/packages/
+          repository-url: https://test.pypi.org/legacy/
+          attestations: true
+          print-hash: true
+
+      - name: Record publication result
+        if: ${{ always() }}
+        env:
+          ARTIFACT_DIGEST: ${{ needs.build.outputs.artifact-digest }}
+          ARTIFACT_NAME: ${{ needs.build.outputs.artifact-name }}
+          PUBLISH_OUTCOME: ${{ steps.publish.outcome }}
+          VERSION: ${{ needs.build.outputs.version }}
+        shell: bash
+        run: |
+          {
+            echo "## TestPyPI publication"
+            printf -- '- Outcome: `%s`\n' "${PUBLISH_OUTCOME:-not-run}"
+            printf -- '- Commit: `%s`\n' "$GITHUB_SHA"
+            printf -- '- Version: `%s`\n' "$VERSION"
+            printf -- '- Actions artifact: `%s`\n' "$ARTIFACT_NAME"
+            printf -- '- Actions artifact SHA-256: `%s`\n' "$ARTIFACT_DIGEST"
+            if [[ -f release/release.sha256 ]]; then
+              echo "### Uploaded package SHA-256 digests"
+              while read -r digest filename; do
+                printf -- '- `%s  %s`\n' "$digest" "$filename"
+              done < release/release.sha256
+            fi
+          } | tee -a "$GITHUB_STEP_SUMMARY"
