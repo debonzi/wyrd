@@ -5,6 +5,8 @@ from pathlib import Path
 
 import pytest
 
+import wyrd_cli
+
 
 EXPECTED_ROOT_COMMANDS = {"init", "status", "doctor", "ticket", "task", "label"}
 EXPECTED_RESOURCE_COMMANDS = {
@@ -61,7 +63,7 @@ def test_help_and_version_need_no_application_or_project(runner) -> None:
     assert runner.invoke(app, ["--help"]).exit_code == 0
     version = runner.invoke(app, ["--version"])
     assert version.exit_code == 0
-    assert version.stdout == "0.1.0\n"
+    assert version.stdout == f"{wyrd_cli.__version__}\n"
 
 
 @pytest.mark.parametrize(

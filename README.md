@@ -145,6 +145,10 @@ uv sync --locked
 uv run pytest
 ```
 
-The GitHub Actions workflow runs the same suite on Python 3.12 and 3.14. Skill tests
-validate its metadata, documented command inventory and options, compatibility version,
-and native summary workflow against the installed CLI.
+The GitHub Actions workflow runs the same suite on Python 3.12, 3.13, and 3.14. Skill
+tests validate its metadata, documented command inventory and options, compatibility
+version, and native summary workflow against the installed CLI.
+
+Before publishing, run the canonical artifact build, validation, and isolated smoke
+pipeline documented in `docs/releasing.md`. It builds into a caller-selected empty
+directory and never uses the stale files in the repository's top-level `dist/`.

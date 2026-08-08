@@ -110,7 +110,8 @@ def test_skill_package_follows_agent_skills_metadata_and_progressive_disclosure(
     assert metadata["license"] == "MIT"
     assert metadata["metadata"] == {"version": wyrd_cli.__version__}
     compatibility = str(metadata["compatibility"])
-    assert "wyrd-cli 0.1.x" in compatibility
+    major, minor, *_ = wyrd_cli.__version__.split(".")
+    assert f"wyrd-cli {major}.{minor}.x" in compatibility
     assert "--summary" in compatibility
     assert "python" not in compatibility.lower()
 

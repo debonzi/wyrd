@@ -98,7 +98,8 @@ def test_release_metadata_license_dependencies_and_installed_entry_point() -> No
     project = configuration["project"]
     assert configuration["build-system"]["build-backend"] == "uv_build"
     assert project["name"] == "wyrd-cli"
-    assert project["version"] == wyrd_cli.__version__ == "0.1.0"
+    version = project["version"]
+    assert version == wyrd_cli.__version__
     assert project["requires-python"] == ">=3.12"
     assert project["license"] == "MIT"
     assert project["license-files"] == ["LICENSE"]
@@ -119,15 +120,17 @@ def test_release_metadata_license_dependencies_and_installed_entry_point() -> No
     )
     assert EXPECTED_PROJECT_URLS.items() <= project["urls"].items()
     assert set(project["dependencies"]) == EXPECTED_RUNTIME_DEPENDENCIES
-    assert len(configuration["dependency-groups"]["dev"]) == 1
-    assert configuration["dependency-groups"]["dev"][0].startswith("pytest")
+    dev_group = configuration["dependency-groups"]["dev"]
+    assert "pytest>=9.0,<10" in dev_group
+    assert not any(requirement.startswith("twine") for requirement in dev_group)
+    assert configuration["dependency-groups"]["release"] == ["twine==6.2.0"]
 
     license_text = (ROOT / "LICENSE").read_text(encoding="utf-8")
     assert license_text.startswith("MIT License\n")
     assert "Permission is hereby granted, free of charge" in license_text
 
     installed = distribution("wyrd-cli")
-    assert installed.version == "0.1.0"
+    assert installed.version == version
     assert installed.metadata["Requires-Python"] == ">=3.12"
     assert installed.metadata["License-Expression"] == "MIT"
     assert installed.metadata.get_all("License-File") == ["LICENSE"]
@@ -157,17 +160,18 @@ def test_release_metadata_license_dependencies_and_installed_entry_point() -> No
 def test_pypi_readme_documents_installation_platform_and_separate_skill() -> None:
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     assert readme.index("## Installation") < readme.index("## Getting started")
+    version = wyrd_cli.__version__
     for command in (
         "uv tool install wyrd-cli",
         "pipx install wyrd-cli",
         "python -m pip install wyrd-cli",
         "pi --skill ./skills/wyrd",
-        "pi install git:github.com/debonzi/wyrd@v0.1.0",
+        f"pi install git:github.com/debonzi/wyrd@v{version}",
     ):
         assert command in readme
 
     prose = " ".join(readme.split())
-    assert "Wyrd 0.1.0 supports Linux only" in prose
+    assert f"Wyrd {version} supports Linux only" in prose
     assert "requires Python 3.12 or newer" in prose
     assert "Windows and macOS are not currently supported" in prose
     assert "provides the `wyrd` command" in prose
@@ -190,5 +194,5 @@ def test_pypi_readme_documents_installation_platform_and_separate_skill() -> Non
 
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     assert "## Unreleased" in changelog
-    assert "## 0.1.0 - Pending" in changelog
+    assert f"## {version} - Pending" in changelog
     assert "Initial alpha release for Linux" in changelog
