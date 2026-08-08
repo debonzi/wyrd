@@ -8,7 +8,7 @@ All notable changes to Wyrd will be documented in this file. The format follows
 
 No changes yet.
 
-## 0.1.0 - Pending
+## 0.1.0 - 2026-08-08
 
 Initial alpha release for Linux, requiring Python 3.12 or newer.
 
