@@ -11,12 +11,37 @@ requires-python = ">=3.12"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "Wyrd contributors" }]
+keywords = [
+    "cli",
+    "coding-agents",
+    "issue-tracker",
+    "project-management",
+    "ticket-management",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
 dependencies = [
     "pydantic>=2.12,<3",
     "pyyaml>=6.0,<7",
     "rich>=14.0,<15",
     "typer>=0.21,<1",
 ]
+
+[project.urls]
+Homepage = "https://github.com/debonzi/wyrd"
+Repository = "https://github.com/debonzi/wyrd"
+Issues = "https://github.com/debonzi/wyrd/issues"
+Changelog = "https://github.com/debonzi/wyrd/blob/main/CHANGELOG.md"
 
 [project.scripts]
 wyrd = "wyrd_cli.main:main"
