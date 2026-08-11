@@ -95,14 +95,15 @@ stable identity, status, labels, active dependencies, blocking state, and task c
 Without the flag, list JSON remains the complete, compatible resource projection.
 Human list output is already concise and stays unchanged when `--summary` is present.
 
-For a human-oriented hierarchy of open tickets and all of their tasks, use:
+For a human-oriented tabular hierarchy of open tickets and all of their tasks, use:
 
 ```console
 wyrd tree
 ```
 
-The defaults are `--status open` and `--task-status all`. Ticket filters reuse the
-existing list semantics:
+The defaults are `--status open` and `--task-status all`. In human output, the `tasks`
+column reports displayed tasks versus the ticket total, such as `2/5`. Ticket filters
+reuse the existing list semantics:
 
 ```console
 wyrd tree --label bug --text startup --task-status open

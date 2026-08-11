@@ -20,9 +20,7 @@ from wyrd_cli.application.dto import (
     ProjectDTO,
     ProjectStatusDTO,
     TaskDTO,
-    TaskSummaryDTO,
     TicketDTO,
-    TicketSummaryDTO,
     TicketTreeBranchDTO,
 )
 
@@ -125,25 +123,45 @@ def render_tree(
     branches: Iterable[TicketTreeBranchDTO], *, stream: TextIO, styled: bool
 ) -> None:
     values = tuple(branches)
-    if not values:
-        _write_lines(stream, ("No matching tickets.",), styled=styled)
-        return
-
-    lines: list[str] = []
-    for branch in values:
-        lines.append(_tree_resource_line(branch.ticket))
-        if branch.tasks:
-            for index, task in enumerate(branch.tasks):
-                connector = "└──" if index == len(branch.tasks) - 1 else "├──"
-                lines.append(f"  {connector} {_tree_resource_line(task)}")
-        else:
-            description = (
-                "no tasks"
-                if branch.ticket.tasks_summary.total == 0
-                else "no matching tasks"
+    rows: list[tuple[str, ...]] = []
+    section_breaks: set[int] = set()
+    for branch_index, branch in enumerate(values):
+        ticket = branch.ticket
+        rows.append(
+            (
+                str(ticket.id),
+                ticket.status.value,
+                ticket.title,
+                ",".join(ticket.labels),
+                _joined(ticket.active_blocked_by),
+                f"{len(branch.tasks)}/{ticket.tasks_summary.total}",
             )
-            lines.append(f"  └── {description}")
-    _write_lines(stream, lines, styled=styled)
+        )
+        for index, task in enumerate(branch.tasks):
+            connector = "└──" if index == len(branch.tasks) - 1 else "├──"
+            task_status = task.status.value
+            if task_status == "open" and not task.active:
+                task_status += " (inactive)"
+            rows.append(
+                (
+                    f"{connector} {task.id}",
+                    task_status,
+                    task.title,
+                    ",".join(task.labels),
+                    _joined(task.active_blocked_by),
+                    "-",
+                )
+            )
+        if branch_index < len(values) - 1:
+            section_breaks.add(len(rows) - 1)
+
+    _table(
+        stream,
+        ("ID", "status", "title", "labels", "blocked by", "tasks"),
+        rows,
+        styled=styled,
+        section_breaks=frozenset(section_breaks),
+    )
 
 
 def render_resource(
@@ -280,18 +298,25 @@ def _table(
     rows: Iterable[tuple[str, ...]],
     *,
     styled: bool,
+    section_breaks: frozenset[int] = frozenset(),
 ) -> None:
+    values = tuple(rows)
     if styled:
         table = Table(show_header=True, header_style="bold")
         for header in headers:
             table.add_column(header)
-        for row in rows:
-            table.add_row(*row)
+        for index, row in enumerate(values):
+            table.add_row(*row, end_section=index in section_breaks)
         _console(stream, styled=True).print(table)
         return
-    stream.write(" | ".join(headers) + "\n")
-    for row in rows:
-        stream.write(" | ".join(row) + "\n")
+    header_line = " | ".join(headers)
+    row_lines = tuple(" | ".join(row) for row in values)
+    separator = "-" * max((len(header_line), *(len(line) for line in row_lines)))
+    stream.write(header_line + "\n")
+    for index, line in enumerate(row_lines):
+        stream.write(line + "\n")
+        if index in section_breaks:
+            stream.write(separator + "\n")
     stream.flush()
 
 
@@ -315,20 +340,6 @@ def _console(stream: TextIO, *, styled: bool) -> Console:
         highlight=False,
         markup=False,
     )
-
-
-def _tree_resource_line(resource: TicketSummaryDTO | TaskSummaryDTO) -> str:
-    state = [resource.status.value]
-    if (
-        isinstance(resource, TaskSummaryDTO)
-        and resource.status.value == "open"
-        and not resource.active
-    ):
-        state.append("inactive")
-    if resource.is_blocked:
-        state.append(f"blocked by: {_joined(resource.active_blocked_by)}")
-    labels = f" [labels: {','.join(resource.labels)}]" if resource.labels else ""
-    return f"{resource.id} [{'; '.join(state)}] {resource.title}{labels}"
 
 
 def _timestamp(value: datetime | None) -> str:

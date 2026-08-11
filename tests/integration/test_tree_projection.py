@@ -98,6 +98,6 @@ def test_installed_console_script_tree_is_compact_filtered_and_read_only(
 
     human = wyrd_process.run(project_dir, "tree", "--task-status", "open")
     assert human.returncode == 0
-    assert "1 [open] Startup work [labels: bug]" in human.stdout
-    assert "1.2 [open] Pending" in human.stdout
+    assert "1 | open | Startup work | bug |  | 1/2" in human.stdout
+    assert "└── 1.2 | open | Pending |  |  | -" in human.stdout
     assert _fingerprint(project_dir) == before
