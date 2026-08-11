@@ -1,6 +1,6 @@
 # Wyrd command reference
 
-This reference describes Wyrd 0.1.x. Run `wyrd <command> --help` when the installed
+This reference describes Wyrd 0.2.x. Run `wyrd <command> --help` when the installed
 version differs.
 
 ## Shared conventions

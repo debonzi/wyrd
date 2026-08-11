@@ -2,9 +2,9 @@
 name: wyrd
 description: Manage local Wyrd tickets, tasks, labels, lifecycle transitions, and dependencies efficiently. Use when selecting, inspecting, creating, editing, organizing, or completing work tracked by the wyrd CLI, or when diagnosing a Wyrd project.
 license: MIT
-compatibility: Requires the wyrd executable from wyrd-cli 0.1.x with native --summary support on PATH.
+compatibility: Requires the wyrd executable from wyrd-cli 0.2.x with native --summary support on PATH.
 metadata:
-  version: "0.1.0"
+  version: "0.2.0"
 ---
 
 # Wyrd

@@ -5,7 +5,7 @@ Read this reference before changing statuses or dependencies.
 ## Status and activity
 
 Resources have one of three statuses: `open`, `completed`, or `dismissed`. There is no
-reopen command in Wyrd 0.1.x.
+reopen command in Wyrd 0.2.x.
 
 - An open ticket is active.
 - A task is active only when both the task and its parent ticket are open.

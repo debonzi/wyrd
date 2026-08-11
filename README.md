@@ -15,7 +15,7 @@ Wyrd is a local-first ticket management CLI built for coding agents and equally 
 
 ## Installation
 
-Wyrd 0.1.0 supports Linux only and requires Python 3.12 or newer. Windows and
+Wyrd 0.2.0 supports Linux only and requires Python 3.12 or newer. Windows and
 macOS are not currently supported. For released versions published on PyPI, install
 Wyrd as an isolated CLI tool with `uv` (recommended):
 
@@ -140,11 +140,11 @@ source checkout, try it in Pi with:
 pi --skill ./skills/wyrd
 ```
 
-For normal use with Wyrd 0.1.0, install the repository package pinned to its matching
+For normal use with Wyrd 0.2.0, install the repository package pinned to its matching
 Git tag:
 
 ```console
-pi install git:github.com/debonzi/wyrd@v0.1.0
+pi install git:github.com/debonzi/wyrd@v0.2.0
 ```
 
 Pi discovers the repository's top-level `skills/` directory automatically. Other

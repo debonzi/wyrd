@@ -194,5 +194,5 @@ def test_pypi_readme_documents_installation_platform_and_separate_skill() -> Non
 
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
     assert "## Unreleased" in changelog
-    assert f"## {version} - 2026-08-08" in changelog
+    assert f"## {version} - 2026-08-11" in changelog
     assert "Initial alpha release for Linux" in changelog

@@ -6,6 +6,8 @@ All notable changes to Wyrd will be documented in this file. The format follows
 
 ## Unreleased
 
+## 0.2.0 - 2026-08-11
+
 ### Added
 
 - `wyrd tree` for a compact hierarchy of filtered tickets and their child tasks, with
