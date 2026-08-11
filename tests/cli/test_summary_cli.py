@@ -224,6 +224,7 @@ def test_help_exposes_summary_only_on_ticket_and_task_list(runner, cli_factory) 
     leaf_commands = (
         ("init",),
         ("status",),
+        ("tree",),
         ("doctor",),
         ("ticket", "create"),
         ("ticket", "list"),

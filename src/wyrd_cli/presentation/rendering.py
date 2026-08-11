@@ -20,7 +20,10 @@ from wyrd_cli.application.dto import (
     ProjectDTO,
     ProjectStatusDTO,
     TaskDTO,
+    TaskSummaryDTO,
     TicketDTO,
+    TicketSummaryDTO,
+    TicketTreeBranchDTO,
 )
 
 from .serialization import dumps
@@ -116,6 +119,31 @@ def render_task_list(tasks: Iterable[TaskDTO], *, stream: TextIO, styled: bool) 
         for task in tasks
     ]
     _table(stream, headers, rows, styled=styled)
+
+
+def render_tree(
+    branches: Iterable[TicketTreeBranchDTO], *, stream: TextIO, styled: bool
+) -> None:
+    values = tuple(branches)
+    if not values:
+        _write_lines(stream, ("No matching tickets.",), styled=styled)
+        return
+
+    lines: list[str] = []
+    for branch in values:
+        lines.append(_tree_resource_line(branch.ticket))
+        if branch.tasks:
+            for index, task in enumerate(branch.tasks):
+                connector = "└──" if index == len(branch.tasks) - 1 else "├──"
+                lines.append(f"  {connector} {_tree_resource_line(task)}")
+        else:
+            description = (
+                "no tasks"
+                if branch.ticket.tasks_summary.total == 0
+                else "no matching tasks"
+            )
+            lines.append(f"  └── {description}")
+    _write_lines(stream, lines, styled=styled)
 
 
 def render_resource(
@@ -287,6 +315,20 @@ def _console(stream: TextIO, *, styled: bool) -> Console:
         highlight=False,
         markup=False,
     )
+
+
+def _tree_resource_line(resource: TicketSummaryDTO | TaskSummaryDTO) -> str:
+    state = [resource.status.value]
+    if (
+        isinstance(resource, TaskSummaryDTO)
+        and resource.status.value == "open"
+        and not resource.active
+    ):
+        state.append("inactive")
+    if resource.is_blocked:
+        state.append(f"blocked by: {_joined(resource.active_blocked_by)}")
+    labels = f" [labels: {','.join(resource.labels)}]" if resource.labels else ""
+    return f"{resource.id} [{'; '.join(state)}] {resource.title}{labels}"
 
 
 def _timestamp(value: datetime | None) -> str:

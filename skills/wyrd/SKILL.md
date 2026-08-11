@@ -46,14 +46,25 @@ the project root.
    labels, and active blocking information while omitting bodies, timestamps, and
    historical dependency fields.
 
-3. Load a complete object only after selecting it:
+3. When planning tasks across several selected tickets, replace repeated task-list
+   calls with one filtered compact tree:
+
+   ```bash
+   wyrd tree --status open --task-status open --label bug --json
+   ```
+
+   Do not use an unfiltered tree for initial triage. A tree eagerly includes child
+   summaries for every matching ticket and can consume more context than a ticket
+   summary list. For one selected ticket, continue to use `task list --ticket`.
+
+4. Load a complete object only after selecting it:
 
    ```bash
    wyrd ticket view 3 --json
    wyrd task view 3.2 --json
    ```
 
-4. Read dependency detail only when ordering work or resolving a block:
+5. Read dependency detail only when ordering work or resolving a block:
 
    ```bash
    wyrd ticket dependency list 3 --json
@@ -63,8 +74,10 @@ the project root.
 Use list filters early. Ticket lists default to open and support repeated `--label`
 filters plus `--text`; the examples keep `--status open` explicit. Task lists require
 `--ticket` and default to all statuses, so always pass `--status open` during triage to
-exclude terminal history. Use `view --json` only after selecting a resource and needing
-its body or complete metadata.
+exclude terminal history. Trees likewise default to open tickets and all task statuses;
+agents should normally pass `--task-status open`. Tree `--label` and `--text` filters
+apply to tickets, and its JSON branches are always compact summaries. Use `view --json`
+only after selecting a resource and needing its body or complete metadata.
 
 ## Mutation workflow
 

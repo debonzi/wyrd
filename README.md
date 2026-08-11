@@ -95,6 +95,31 @@ stable identity, status, labels, active dependencies, blocking state, and task c
 Without the flag, list JSON remains the complete, compatible resource projection.
 Human list output is already concise and stays unchanged when `--summary` is present.
 
+For a human-oriented hierarchy of open tickets and all of their tasks, use:
+
+```console
+wyrd tree
+```
+
+The defaults are `--status open` and `--task-status all`. Ticket filters reuse the
+existing list semantics:
+
+```console
+wyrd tree --label bug --text startup --task-status open
+```
+
+Tree JSON is always a compact nested projection of ticket and task summaries, without
+bodies or timestamps. It is useful when an agent needs tasks from several tickets in
+one consistent read:
+
+```console
+wyrd tree --status open --task-status open --json
+```
+
+Agents should still prefer `ticket list --summary --json` for initial triage and
+`task list --ticket ... --summary --json` for one selected ticket, since an unfiltered
+tree can use unnecessary context.
+
 Run `wyrd --help` to explore all available commands.
 
 ## Agent skill

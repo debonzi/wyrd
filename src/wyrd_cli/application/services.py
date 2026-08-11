@@ -30,6 +30,7 @@ from wyrd_cli.application.dto import (
     TicketListFilter,
     TicketStatusCountsDTO,
     TicketSummaryDTO,
+    TicketTreeBranchDTO,
     TransitionPreflightDTO,
 )
 from wyrd_cli.application.storage import ReadTransaction, StoragePort, StructuralScan
@@ -206,6 +207,32 @@ class WyrdApplication:
             )
             _validate_status_equations(result)
             return result
+
+    def list_tree(
+        self,
+        ticket_filters: TicketListFilter = TicketListFilter(),
+        task_filters: TaskListFilter = TaskListFilter(),
+        *,
+        lock_timeout: float = 10.0,
+    ) -> tuple[TicketTreeBranchDTO, ...]:
+        """List filtered ticket branches with compact child task projections."""
+        ticket_criteria = _normalize_ticket_list_filter(ticket_filters)
+        task_status = _normalize_status_filter(task_filters.status)
+        timeout = _validate_timeout(lock_timeout)
+        with self._storage.read(timeout=timeout) as transaction:
+            snapshot = _load_snapshot(transaction)
+            return tuple(
+                TicketTreeBranchDTO(
+                    ticket=_ticket_summary_dto(ticket, snapshot),
+                    tasks=tuple(
+                        _task_summary_dto(task, snapshot)
+                        for task in _matching_tasks(
+                            snapshot, ticket.id, task_status
+                        )
+                    ),
+                )
+                for ticket in _matching_tickets(snapshot, ticket_criteria)
+            )
 
     # Ticket operations --------------------------------------------------
 

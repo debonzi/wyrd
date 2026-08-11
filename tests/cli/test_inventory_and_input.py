@@ -8,7 +8,7 @@ import pytest
 import wyrd_cli
 
 
-EXPECTED_ROOT_COMMANDS = {"init", "status", "doctor", "ticket", "task", "label"}
+EXPECTED_ROOT_COMMANDS = {"init", "status", "tree", "doctor", "ticket", "task", "label"}
 EXPECTED_RESOURCE_COMMANDS = {
     "create",
     "list",

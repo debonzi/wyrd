@@ -42,6 +42,7 @@ from .rendering import (
     render_status,
     render_task_list,
     render_ticket_list,
+    render_tree,
     styling_enabled,
 )
 
@@ -170,6 +171,45 @@ def create_app(dependencies: PresentationDependencies) -> typer.Typer:
                 ),
             ),
             render_status,
+        )
+
+    @app.command("tree")
+    def tree(
+        status_value: str = typer.Option(
+            "open", "--status", callback=validate_status
+        ),
+        task_status_value: str = typer.Option(
+            "all", "--task-status", callback=validate_status
+        ),
+        labels: list[str] = typer.Option([], "--label"),
+        text: str | None = typer.Option(None, "--text"),
+        json_output: bool = typer.Option(False, "--json"),
+        no_color: bool = typer.Option(False, "--no-color"),
+        lock_timeout: float = typer.Option(
+            10.0, "--lock-timeout", callback=validate_lock_timeout
+        ),
+    ) -> None:
+        """Show tickets and their tasks as a hierarchy tree."""
+
+        settings = InvocationSettings(json_output, no_color, lock_timeout)
+        ticket_filters = TicketListFilter(
+            status=status_value,
+            labels=tuple(labels),
+            text=text,
+        )
+        task_filters = TaskListFilter(status=task_status_value)
+        _run(
+            dependencies,
+            settings,
+            lambda: _with_project(
+                dependencies,
+                lambda application: application.list_tree(
+                    ticket_filters,
+                    task_filters,
+                    lock_timeout=lock_timeout,
+                ),
+            ),
+            render_tree,
         )
 
     @app.command("doctor")

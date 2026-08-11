@@ -22,6 +22,7 @@ EXPECTED_COMMANDS = {
     "wyrd init",
     "wyrd label list",
     "wyrd status",
+    "wyrd tree",
     "wyrd task complete",
     "wyrd task create",
     "wyrd task dependency add",
@@ -124,6 +125,7 @@ def test_skill_package_follows_agent_skills_metadata_and_progressive_disclosure(
         "wyrd ticket list --status open --summary --json",
         "wyrd ticket list --status open --label bug --text startup --summary --json",
         "wyrd task list --ticket 3 --status open --summary --json",
+        "wyrd tree --status open --task-status open --label bug --json",
         "wyrd ticket view 3 --json",
         "wyrd task view 3.2 --json",
     ):
@@ -372,4 +374,22 @@ def test_skill_native_summary_workflow_filters_orders_and_never_writes(
         "updated_at",
     }.isdisjoint(tasks[1])
     assert secret_body not in tasks_result.stdout
+
+    tree_result = wyrd_process.run(
+        project_dir,
+        "tree",
+        "--status",
+        "open",
+        "--task-status",
+        "open",
+        "--label",
+        "bug",
+        "--json",
+    )
+    tree = _ok(tree_result)
+    assert [branch["ticket"]["id"] for branch in tree] == [1]
+    assert set(tree[0]["ticket"]) == TICKET_SUMMARY_KEYS
+    assert [item["id"] for item in tree[0]["tasks"]] == ["1.1", "1.3"]
+    assert all(set(item) == TASK_SUMMARY_KEYS for item in tree[0]["tasks"])
+    assert secret_body not in tree_result.stdout
     assert _managed_bytes(project_dir) == before
