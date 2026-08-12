@@ -147,7 +147,9 @@ Git tag:
 pi install git:github.com/debonzi/wyrd@v0.2.0
 ```
 
-Pi discovers the repository's top-level `skills/` directory automatically. Other
+Pi discovers the repository's top-level `skills/` directory automatically. Only the
+globally distributable `wyrd` skill lives there; maintainer-only skills are kept under
+project-scoped `.agents/skills/` and are available only from a trusted checkout. Other
 Agent Skills-compatible harnesses can obtain `skills/wyrd` from the matching Git tag
 and install or copy it into their user- or project-level skills directory.
 

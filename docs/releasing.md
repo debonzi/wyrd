@@ -21,7 +21,8 @@ The one command:
    `wyrd_cli-<version>.tar.gz` and `wyrd_cli-<version>-py3-none-any.whl`;
 4. runs the locked Twine release tool as `twine check --strict`;
 5. validates filenames, metadata, entry points, license data, dependencies, archive
-   contents, forbidden files, and the intentional exclusion of `skills/wyrd`;
+   contents, forbidden files, and the intentional exclusion of both the distributable
+   `skills/wyrd` package and project-only `.agents` resources;
 6. installs and exercises the wheel in an isolated environment outside the checkout;
 7. builds a wheel from the fresh sdist with another clean environment, then installs
    and exercises that derived wheel; and

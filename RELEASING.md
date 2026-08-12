@@ -24,7 +24,10 @@ The supported release matrix is Python 3.12, 3.13, and 3.14. Although package me
 says `Requires-Python >=3.12`, each release is tested on those three Python versions. Confirm the normalized distribution name is still
 `wyrd-cli` before first publication. A pending publisher does not reserve that name.
 The Agent Skill under `skills/wyrd/` is distributed from the Git tag and is
-intentionally absent from the wheel and source distribution.
+intentionally absent from the wheel and source distribution. The maintainer-only
+release skill lives under `.agents/skills/wyrd-release/`, where Pi discovers it only
+from a trusted Wyrd worktree. Keeping it outside the package-level `skills/` directory
+prevents global Wyrd package installations from exposing `/skill:wyrd-release`.
 
 ## Local release gate
 

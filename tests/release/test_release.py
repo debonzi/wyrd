@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import shutil
 import tomllib
 from pathlib import Path
@@ -86,9 +87,30 @@ def test_repository_check_rejects_skill_version_drift_without_changing_checkout(
         release.validate_repository(tmp_path)
 
 
+@pytest.mark.parametrize("required_exclusion", ["/.agents", "/skills"])
+def test_repository_check_requires_skill_scope_source_exclusions(
+    tmp_path: Path, required_exclusion: str
+) -> None:
+    _copy_release_identity_files(tmp_path)
+    configuration = tmp_path / "pyproject.toml"
+    configuration.write_text(
+        configuration.read_text(encoding="utf-8").replace(
+            f'    "{required_exclusion}",\n', "", 1
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(
+        release.ReleaseCheckError,
+        match=f"explicitly exclude {re.escape(required_exclusion)}",
+    ):
+        release.validate_repository(tmp_path)
+
+
 @pytest.mark.parametrize(
     "member",
     [
+        "package/.agents/AGENTS.md",
         "package/.drafts/release.md",
         "package/.git/config",
         "package/.venv/pyvenv.cfg",

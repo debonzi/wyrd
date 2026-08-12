@@ -34,6 +34,7 @@ ROOT = Path(__file__).resolve().parents[1]
 EXPECTED_ENTRY_POINT = "wyrd_cli.main:main"
 
 FORBIDDEN_PATH_PARTS = {
+    ".agents",
     ".drafts",
     ".git",
     ".hg",
@@ -244,8 +245,12 @@ def validate_repository(
     source_excludes = configuration.get("tool", {}).get("uv", {}).get(
         "build-backend", {}
     ).get("source-exclude", [])
-    if "/skills" not in source_excludes:
-        _fail("[tool.uv.build-backend].source-exclude must explicitly exclude /skills")
+    for required_exclusion in ("/.agents", "/skills"):
+        if required_exclusion not in source_excludes:
+            _fail(
+                "[tool.uv.build-backend].source-exclude must explicitly exclude "
+                f"{required_exclusion}"
+            )
 
     release_group = configuration.get("dependency-groups", {}).get("release", [])
     if release_group != ["twine==6.2.0"]:

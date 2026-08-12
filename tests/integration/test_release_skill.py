@@ -7,7 +7,7 @@ import yaml
 
 
 ROOT = Path(__file__).resolve().parents[2]
-SKILL = ROOT / "skills" / "wyrd-release"
+SKILL = ROOT / ".agents" / "skills" / "wyrd-release"
 SKILL_FILE = SKILL / "SKILL.md"
 
 
@@ -18,6 +18,17 @@ def _frontmatter() -> tuple[dict[str, object], str]:
     value = yaml.safe_load(encoded)
     assert isinstance(value, dict)
     return value, body
+
+
+def test_release_skill_is_project_scoped_not_globally_distributed() -> None:
+    distributed_skills = {
+        path.relative_to(ROOT).as_posix()
+        for path in (ROOT / "skills").rglob("SKILL.md")
+    }
+
+    assert distributed_skills == {"skills/wyrd/SKILL.md"}
+    assert SKILL_FILE.is_file()
+    assert not (ROOT / "skills" / "wyrd-release").exists()
 
 
 def test_release_skill_is_direct_only_and_encodes_the_production_workflow() -> None:

@@ -6,6 +6,11 @@ All notable changes to Wyrd will be documented in this file. The format follows
 
 ## Unreleased
 
+### Changed
+
+- Moved the maintainer-only release skill to project-scoped `.agents/skills/`, so
+  installing the Wyrd skill package globally exposes only the public `wyrd` skill.
+
 ## 0.2.0 - 2026-08-11
 
 ### Added
