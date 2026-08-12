@@ -100,6 +100,11 @@ class TaskSummaryDTO(OutputModel):
     active_blocking: tuple[str, ...]
 
 
+class TicketTreeBranchDTO(OutputModel):
+    ticket: TicketSummaryDTO
+    tasks: tuple[TaskSummaryDTO, ...]
+
+
 class TicketDTO(OutputModel):
     type: Literal["ticket"] = "ticket"
     id: int

@@ -6,6 +6,7 @@ from wyrd_cli.application.dto import (
     TasksSummaryDTO,
     TicketListFilter,
     TicketSummaryDTO,
+    TicketTreeBranchDTO,
 )
 from wyrd_cli.application.services import WyrdApplication
 from wyrd_cli.domain.models import ResourceStatus
@@ -163,6 +164,57 @@ def test_summary_lists_preserve_empty_results_filters_defaults_and_ordering() ->
 
     empty = WyrdApplication(FakeStorage(), FixedClock())
     assert empty.list_ticket_summaries() == ()
+
+
+def test_tree_uses_compact_branches_filters_defaults_and_ordering() -> None:
+    storage = FakeStorage(
+        tickets=(
+            ticket(9, status=ResourceStatus.DISMISSED),
+            ticket(4, title="Needle second", labels=("bug",)),
+            ticket(1, title="Needle first", labels=("bug",)),
+            ticket(6),
+        ),
+        tasks=(
+            task(
+                1,
+                8,
+                body="private completed body",
+                status=ResourceStatus.COMPLETED,
+            ),
+            task(1, 3, body="private open body"),
+            task(4, 2),
+            task(9, 1),
+        ),
+    )
+    application = WyrdApplication(storage, FixedClock())
+
+    branches = application.list_tree()
+    assert all(isinstance(branch, TicketTreeBranchDTO) for branch in branches)
+    assert [branch.ticket.id for branch in branches] == [1, 4, 6]
+    assert [task.id for task in branches[0].tasks] == ["1.3", "1.8"]
+    assert branches[0].ticket.tasks_summary.total == 2
+    assert "body" not in branches[0].ticket.model_dump()
+    assert all("body" not in item.model_dump() for item in branches[0].tasks)
+
+    filtered = application.list_tree(
+        TicketListFilter(labels=("bug",), text="needle"),
+        TaskListFilter(status=ResourceStatus.OPEN),
+    )
+    assert [branch.ticket.id for branch in filtered] == [1, 4]
+    assert [task.id for task in filtered[0].tasks] == ["1.3"]
+    assert [task.id for task in filtered[1].tasks] == ["4.2"]
+
+
+def test_tree_is_read_only_and_uses_one_snapshot() -> None:
+    storage = FakeStorage(tickets=(ticket(1),), tasks=(task(1, 1),))
+    application = WyrdApplication(storage, FixedClock())
+
+    application.list_tree(lock_timeout=0.25)
+
+    assert storage.calls.count("read.enter:0.25") == 1
+    assert storage.read_transactions == 1
+    assert storage.write_transactions == 0
+    assert storage.writes == []
 
 
 def test_summary_lists_are_read_only_and_propagate_timeout() -> None:

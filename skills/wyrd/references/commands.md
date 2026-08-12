@@ -1,6 +1,6 @@
 # Wyrd command reference
 
-This reference describes Wyrd 0.1.x. Run `wyrd <command> --help` when the installed
+This reference describes Wyrd 0.2.x. Run `wyrd <command> --help` when the installed
 version differs.
 
 ## Shared conventions
@@ -32,6 +32,20 @@ wyrd status [--json] [--no-color] [--lock-timeout SECONDS]
 ```
 
 Returns project, ticket, task, and label counts.
+
+### `wyrd tree`
+
+```text
+wyrd tree [--status STATUS] [--task-status STATUS] [--label LABEL]...
+  [--text TEXT] [common options]
+```
+
+Shows matching tickets and their child tasks as a hierarchy table in human mode.
+Ticket status defaults to `open`; task status defaults to `all`. Repeated labels use AND
+semantics and, like `--text`, filter parent tickets using the same rules as
+`ticket list`. JSON is always a
+compact array of branches containing a ticket summary and filtered task summaries; it
+never includes bodies or timestamps.
 
 ### `wyrd doctor`
 

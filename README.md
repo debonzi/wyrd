@@ -15,7 +15,7 @@ Wyrd is a local-first ticket management CLI built for coding agents and equally 
 
 ## Installation
 
-Wyrd 0.1.0 supports Linux only and requires Python 3.12 or newer. Windows and
+Wyrd 0.2.0 supports Linux only and requires Python 3.12 or newer. Windows and
 macOS are not currently supported. For released versions published on PyPI, install
 Wyrd as an isolated CLI tool with `uv` (recommended):
 
@@ -95,6 +95,32 @@ stable identity, status, labels, active dependencies, blocking state, and task c
 Without the flag, list JSON remains the complete, compatible resource projection.
 Human list output is already concise and stays unchanged when `--summary` is present.
 
+For a human-oriented tabular hierarchy of open tickets and all of their tasks, use:
+
+```console
+wyrd tree
+```
+
+The defaults are `--status open` and `--task-status all`. In human output, the `tasks`
+column reports displayed tasks versus the ticket total, such as `2/5`. Ticket filters
+reuse the existing list semantics:
+
+```console
+wyrd tree --label bug --text startup --task-status open
+```
+
+Tree JSON is always a compact nested projection of ticket and task summaries, without
+bodies or timestamps. It is useful when an agent needs tasks from several tickets in
+one consistent read:
+
+```console
+wyrd tree --status open --task-status open --json
+```
+
+Agents should still prefer `ticket list --summary --json` for initial triage and
+`task list --ticket ... --summary --json` for one selected ticket, since an unfiltered
+tree can use unnecessary context.
+
 Run `wyrd --help` to explore all available commands.
 
 ## Agent skill
@@ -114,11 +140,11 @@ source checkout, try it in Pi with:
 pi --skill ./skills/wyrd
 ```
 
-For normal use with Wyrd 0.1.0, install the repository package pinned to its matching
+For normal use with Wyrd 0.2.0, install the repository package pinned to its matching
 Git tag:
 
 ```console
-pi install git:github.com/debonzi/wyrd@v0.1.0
+pi install git:github.com/debonzi/wyrd@v0.2.0
 ```
 
 Pi discovers the repository's top-level `skills/` directory automatically. Other
