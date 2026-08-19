@@ -44,6 +44,11 @@ wyrd task dependency add 4.2 --blocked-by 4.1
 `4.2` is blocked and `4.1` is the blocker. Wyrd stores the relation on the blocked
 resource and derives the reverse `blocking` direction.
 
+Dependencies model current operational blockers, not historical causality, provenance,
+or general execution order. Add a dependency only when an active resource currently
+prevents another active resource from progressing. Do not create retrospective
+dependencies or attempt to represent the broader chain of prior project work.
+
 Dependencies are allowed only:
 
 - from one ticket to another ticket; or
